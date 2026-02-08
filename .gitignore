@@ -1,0 +1,44 @@
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+dist/
+*.egg-info/
+*.egg
+
+# datos generados
+data/
+
+# modelos
+*.pkl
+*.h2o
+*.mojo
+
+# ide
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# logs
+*.log
+
+# os
+.DS_Store
+Thumbs.db
+
+# node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# generados por el pipeline
+backtest_report.json
+dashboard.html
