@@ -11,15 +11,12 @@ pasos:
 7. backtest - evaluar estrategia
 8. dashboard - visualizacion html
 
-donde se hace cada cosa:
-- target: src/eda.py -> TargetDefinition
-- perimetro: src/eda.py -> DataExplorer
-- limpieza: src/eda.py -> DataCleaner
-- analisis estadistico: src/eda.py -> StatisticalAnalyzer
-- feature engineering: src/features.py -> generate_features_lazy
-- modelado: src/model.py -> ModelTrainer
-- backtesting: src/backtest.py -> generate_full_report
-- visualizacion: src/visualization.py -> create_dashboard
+arquitectura por capas:
+- ingestion/      -> screener.py, market_data.py
+- processing/     -> eda.py, features.py
+- modeling/       -> model.py, signals.py, backtest.py
+- persistence/    -> database.py
+- presentation/   -> visualization.py
 """
 
 import logging
@@ -35,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 MONGO_ENABLED = False
 try:
-    from database import init_mongodb, save_market_data, save_signals, save_backtest_results
+    from persistence.database import init_mongodb, save_market_data, save_signals, save_backtest_results
     MONGO_ENABLED = True
 except ImportError:
     pass
@@ -72,7 +69,7 @@ def run_step(step_name: str, step_func, *args, **kwargs) -> Any:
 
 
 def step_1_screener(dirs: Dict[str, Path], skip: bool) -> 'pl.DataFrame':
-    from screener import get_small_cap_screener, save_screener_results, ScreenerError
+    from ingestion.screener import get_small_cap_screener, save_screener_results, ScreenerError
     
     screener_path = dirs['data_raw'] / 'screener.csv'
     
@@ -94,7 +91,7 @@ def step_1_screener(dirs: Dict[str, Path], skip: bool) -> 'pl.DataFrame':
 
 
 def step_2_market_data(dirs: Dict[str, Path], symbols: list) -> 'pl.DataFrame':
-    from market_data import download_multiple_stocks, save_market_data
+    from ingestion.market_data import download_multiple_stocks, save_market_data
     
     market_df = download_multiple_stocks(symbols, period="1y", interval="1d")
     if market_df.is_empty():
@@ -105,7 +102,7 @@ def step_2_market_data(dirs: Dict[str, Path], symbols: list) -> 'pl.DataFrame':
 
 
 def step_2b_eda(market_df: 'pl.DataFrame', dirs: Dict[str, Path]) -> Dict[str, Any]:
-    from eda import run_full_eda, DataExplorer, TargetDefinition
+    from processing.eda import run_full_eda, DataExplorer, TargetDefinition
     
     logger.info("ejecutando eda...")
     
@@ -121,7 +118,7 @@ def step_2b_eda(market_df: 'pl.DataFrame', dirs: Dict[str, Path]) -> Dict[str, A
 
 
 def step_3_features(market_df: 'pl.DataFrame', dirs: Dict[str, Path]) -> tuple:
-    from features import generate_features_lazy, prepare_model_data, save_features
+    from processing.features import generate_features_lazy, prepare_model_data, save_features
     
     features_df = generate_features_lazy(market_df, forward_days=5)
     if features_df.is_empty():
@@ -138,7 +135,7 @@ def step_3_features(market_df: 'pl.DataFrame', dirs: Dict[str, Path]) -> tuple:
 
 
 def step_4_model(train_df: 'pl.DataFrame', dirs: Dict[str, Path], skip_training: bool):
-    from model import ModelTrainer, ModelPersistence
+    from modeling.model import ModelTrainer, ModelPersistence
     
     if skip_training:
         model_files = list(dirs['models'].glob("*"))
@@ -156,8 +153,8 @@ def step_4_model(train_df: 'pl.DataFrame', dirs: Dict[str, Path], skip_training:
 
 
 def step_5_signals(model_info, test_df: 'pl.DataFrame', dirs: Dict[str, Path]) -> 'pl.DataFrame':
-    from model import predict
-    from signals import generate_signals, save_signals
+    from modeling.model import predict
+    from modeling.signals import generate_signals, save_signals
     
     predictions_df = predict(model_info, test_df)
     if predictions_df.is_empty():
@@ -169,7 +166,7 @@ def step_5_signals(model_info, test_df: 'pl.DataFrame', dirs: Dict[str, Path]) -
 
 
 def step_5b_backtest(dirs: Dict[str, Path], base_path: Path) -> None:
-    from backtest import generate_full_report, get_feature_cols
+    from modeling.backtest import generate_full_report, get_feature_cols
     import pickle
     import numpy as np
     
@@ -212,7 +209,7 @@ def step_5b_backtest(dirs: Dict[str, Path], base_path: Path) -> None:
 
 
 def step_6_dashboard(dirs: Dict[str, Path], base_path: Path) -> Path:
-    from visualization import create_dashboard
+    from presentation.visualization import create_dashboard
     
     dashboard_path = base_path / 'dashboard.html'
     data_path = base_path / 'data'
