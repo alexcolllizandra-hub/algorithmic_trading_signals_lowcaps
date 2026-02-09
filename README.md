@@ -1,91 +1,154 @@
 # Trading Algoritmico MVP
 
-Sistema de trading algoritmico academico que genera señales de compra/venta usando machine learning.
+Sistema de trading algoritmico academico que genera señales de compra/venta para acciones small-cap usando machine learning.
 
 **Autores:** Alex Coll, Emilio Delgado  
-**Asignatura:** MD007 - Estructura de Datos
+**Asignatura:** MD007 - Estructura de Datos y su Almacenamiento  
+**Fecha:** Febrero 2026
 
 ## Que hace el proyecto
 
-1. **Web Scraping** - obtiene tickers de small-cap stocks via API de Yahoo Finance
+1. **Web Scraping** - obtiene tickers de small-cap stocks via API JSON de Yahoo Finance
 2. **Descarga de datos** - historicos OHLCV de 1 año con yfinance
 3. **EDA** - analisis exploratorio con Polars (lazy evaluation)
 4. **Feature Engineering** - retornos, volatilidad, momentum, volumen relativo
 5. **Modelado** - entrena GradientBoosting, RandomForest, LogisticRegression con TimeSeriesSplit
 6. **Señales** - genera BUY/SELL/HOLD segun probabilidades del modelo
 7. **Backtesting** - evalua estrategia con reglas TP/SL (5%/3%)
-8. **Visualizacion** - dashboard HTML interactivo con Chart.js
+8. **Persistencia** - almacena resultados en MongoDB
+9. **API REST** - expone datos via FastAPI
+10. **Visualizacion** - dashboard HTML interactivo + frontend React
 
-## Estructura del proyecto
+## Arquitectura por capas
 
 ```
-├── src/                    # codigo principal
-│   ├── main.py            # orquestador del pipeline
-│   ├── screener.py        # web scraping yahoo finance api
-│   ├── market_data.py     # descarga datos con yfinance
-│   ├── eda.py             # analisis exploratorio
-│   ├── features.py        # feature engineering con polars
-│   ├── model.py           # entrenamiento sklearn
-│   ├── signals.py         # generacion de señales
-│   ├── backtest.py        # backtesting con tp/sl
-│   ├── visualization.py   # generador de dashboard html
-│   └── database.py        # persistencia mongodb (opcional)
-├── frontend/              # react app (opcional)
-├── data/                  # datos generados (se crea automaticamente)
-│   ├── raw/              # screener.csv, market_data.parquet
-│   └── processed/        # features.parquet, signals.csv, models/
-├── dashboard.html         # dashboard generado
-├── backtest_report.json   # resultados del backtest
-├── requirements.txt       # dependencias
-└── run_pipeline.py        # script de ejecucion alternativo
+src/
+├── main.py                    # orquestador del pipeline
+│
+├── ingestion/                 # CAPA DE INGESTION
+│   ├── screener.py           # web scraping yahoo finance api
+│   └── market_data.py        # descarga historicos yfinance
+│
+├── processing/                # CAPA DE PROCESAMIENTO
+│   ├── eda.py                # analisis exploratorio, limpieza
+│   └── features.py           # feature engineering con polars lazy
+│
+├── modeling/                  # CAPA DE MODELADO
+│   ├── model.py              # entrenamiento sklearn + timeseriessplit
+│   ├── signals.py            # generacion de señales BUY/SELL/HOLD
+│   └── backtest.py           # backtesting con tp/sl
+│
+├── persistence/               # CAPA DE PERSISTENCIA
+│   └── database.py           # mongodb (singleton pattern)
+│
+└── presentation/              # CAPA DE PRESENTACION
+    └── visualization.py      # generador de dashboard html
+
+api/                           # API REST
+├── main.py                   # fastapi app
+└── routes/                   # endpoints
+    ├── market.py             # GET /api/tickers, /api/market/{ticker}
+    ├── signals.py            # GET /api/signals/{ticker}
+    ├── backtest.py           # GET /api/backtest, /api/backtest/kpis
+    ├── pipeline.py           # POST /api/pipeline/run
+    └── dashboard.py          # GET /api/dashboard
+
+frontend/                      # REACT APP
+├── src/
+│   ├── App.jsx               # componente principal
+│   └── components/           # SignalCard, PriceChart, etc.
+└── package.json
 ```
 
 ## Instalacion
 
 ```bash
 # clonar repositorio
-git clone <url-del-repo>
-cd MD007-S4-Alex_Coll_Emilio_Delgado
+git clone https://github.com/alexcolllizandra-hub/algorithmic_trading_signals_lowcaps.git
+cd algorithmic_trading_signals_lowcaps
 
-# crear entorno virtual (opcional pero recomendado)
+# crear entorno virtual
 python -m venv venv
 venv\Scripts\activate  # windows
 source venv/bin/activate  # linux/mac
 
-# instalar dependencias
+# instalar dependencias python
 pip install -r requirements.txt
+
+# instalar dependencias frontend (opcional)
+cd frontend
+npm install
 ```
 
 ## Ejecucion
 
+### Pipeline completo
+
 ```bash
-# ejecutar pipeline completo
+# desde raiz del proyecto
+python run_pipeline.py
+
+# o desde src/
 cd src
 python main.py
 
-# opciones disponibles
+# opciones
 python main.py --skip-screener    # usa screener guardado
 python main.py --skip-training    # usa modelo guardado
 ```
 
-El pipeline genera:
-- `data/raw/screener.csv` - tickers obtenidos
-- `data/raw/market_data.parquet` - datos historicos
-- `data/processed/features.parquet` - features calculadas
-- `data/processed/models/sklearn_model.pkl` - modelo entrenado
-- `backtest_report.json` - metricas del backtest
-- `dashboard.html` - visualizacion interactiva
+### API REST
 
-## Tecnologias
+```bash
+# lanzar api en puerto 8000
+python run_api.py
 
-| Componente | Tecnologia |
-|------------|------------|
-| Web Scraping | requests + Yahoo Finance API |
-| Procesamiento | Polars (Lazy Evaluation) |
-| Modelado | scikit-learn (TimeSeriesSplit) |
-| Visualizacion | Chart.js + HTML |
-| Base de datos | MongoDB (opcional) |
-| Frontend | React + Tailwind (opcional) |
+# endpoints disponibles en http://localhost:8000/docs
+```
+
+### Frontend React
+
+```bash
+cd frontend
+npm run dev
+
+# disponible en http://localhost:5173
+```
+
+### Dashboard estatico
+
+Abrir `dashboard.html` en el navegador tras ejecutar el pipeline.
+
+## Archivos generados
+
+```
+data/
+├── raw/
+│   ├── screener.csv           # tickers obtenidos
+│   └── market_data.parquet    # datos OHLCV
+└── processed/
+    ├── features.parquet       # features calculadas
+    ├── signals.csv            # señales generadas
+    ├── eda_report.json        # reporte EDA
+    └── models/
+        └── sklearn_model.pkl  # modelo entrenado
+
+backtest_report.json           # metricas del backtest
+dashboard.html                 # visualizacion interactiva
+```
+
+## Stack tecnologico
+
+| Capa | Tecnologia | Descripcion |
+|------|------------|-------------|
+| Ingestion | requests, yfinance | APIs de Yahoo Finance |
+| Procesamiento | Polars | DataFrames con Lazy Evaluation |
+| Modelado | scikit-learn | GradientBoosting, RandomForest, LogisticRegression |
+| Validacion | TimeSeriesSplit | Evita data leakage en series temporales |
+| Persistencia | MongoDB, Parquet | NoSQL + formato columnar |
+| API | FastAPI, Uvicorn | Framework asincrono + servidor ASGI |
+| Frontend | React, Vite, Tailwind | SPA moderna |
+| Visualizacion | Chart.js | Graficos interactivos |
 
 ## Variable objetivo
 
@@ -94,7 +157,7 @@ target = 1 si el precio sube >0% en los proximos 5 dias
 target = 0 en caso contrario
 ```
 
-Clasificacion binaria evaluada con AUC-ROC.
+Clasificacion binaria evaluada con AUC-ROC usando TimeSeriesSplit (5 folds).
 
 ## Logica de señales
 
@@ -112,25 +175,41 @@ Simula trades con reglas de gestion de riesgo:
 - Stop Loss: 3%
 - Horizonte maximo: 10 dias
 
-Metricas calculadas: Return Total, Win Rate, Max Drawdown, Sharpe Ratio.
+Metricas calculadas:
+- Return Total (P&L acumulado)
+- Win Rate (% trades ganadores)
+- Max Drawdown (mayor caida desde maximo)
+- Sharpe Ratio (rentabilidad ajustada por riesgo)
+
+## Patrones de diseño
+
+| Patron | Implementacion | Proposito |
+|--------|----------------|-----------|
+| Singleton | MongoDBConnection | Una unica conexion a BD |
+| Builder/Fluent | DataCleaner | Operaciones encadenables |
+| Strategy | screener fallbacks | Multiples fuentes de datos |
+| Factory | ModelTrainer._get_models() | Crear modelos dinamicamente |
+| Repository | database.py | Abstraccion de persistencia |
+
+## API Endpoints
+
+| Metodo | Endpoint | Descripcion |
+|--------|----------|-------------|
+| GET | /api/tickers | Lista de tickers disponibles |
+| GET | /api/market/{ticker} | Datos OHLCV |
+| GET | /api/signals/{ticker} | Señales de un ticker |
+| GET | /api/backtest/kpis | KPIs principales |
+| GET | /api/dashboard | Datos agregados para frontend |
+| POST | /api/pipeline/run | Ejecutar pipeline |
+
+Documentacion Swagger: http://localhost:8000/docs
 
 ## Requisitos del sistema
 
 - Python 3.9+
+- Node.js 18+ (para frontend)
+- MongoDB 6+ (opcional, para persistencia)
 - Conexion a internet (para descargar datos)
-- MongoDB (opcional, para persistencia)
-
-## Dependencias principales
-
-```
-polars>=0.20.0
-yfinance>=0.2.0
-scikit-learn>=1.3.0
-requests>=2.31.0
-numpy>=1.24.0
-```
-
-Ver `requirements.txt` para lista completa.
 
 ## Notas
 
@@ -138,3 +217,4 @@ Ver `requirements.txt` para lista completa.
 - los mercados son impredecibles, AUC cercano a 0.50-0.55 es normal
 - proyecto academico, no usar para trading real
 - TimeSeriesSplit evita data leakage en la validacion
+- si el puerto 8000 esta ocupado, matar proceso con: `Get-NetTCPConnection -LocalPort 8000 | Stop-Process`
